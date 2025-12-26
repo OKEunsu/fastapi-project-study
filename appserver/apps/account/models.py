@@ -1,5 +1,5 @@
-from datetime import datetime
-from sqlmodel import SQLModel, Field
+from datetime import datetime, timezone
+from sqlmodel import SQLModel, Field, Relationship, func
 from pydantic import EmailStr # 이메일 형식이 유효한지(@ 포함 등) 자동으로 검사해주는 도구
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
 
@@ -29,5 +29,19 @@ class User(SQLModel, table=True):
     
     is_host: bool = Field(default=False, description="사용자가 호스트인지 여부")
     # 생성/ 수정 시간: 데이터의 이력을 추적하기 위한 필수 필드
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = Field(
+        default=None, # 파이썬에서 처리하는 default
+        nullable=False,
+        sa_column_kwargs={
+            "server_default": func.now(), # 데이터베이스에서 처리하는 server_default
+        }, # func는 SQLAlchemy에서 제공하는 객체로, 각 데이터베이스에서 현재 일시 값을 만드는 함수
+    )
+    updated_at: datetime = Field(
+        default=None,
+        nullable=False,
+        sa_column_kwargs={
+            "server_default": func.now(),
+            "onupdate": datetime.now, # ORM의 객체 데이터가 갱신될 때 호출될 파이썬 객체를 받음
+        },
+    )
+    
