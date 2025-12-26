@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlmodel import SQLModel, Field, Relationship, func
+from sqlmodel import SQLModel, Field, Relationship, func, Column, AutoString
 from pydantic import EmailStr, AwareDatetime # 이메일 형식이 유효한지(@ 포함 등) 자동으로 검사해주는 도구
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
 from sqlalchemy_utc import UtcDatetime
@@ -49,3 +49,48 @@ class User(SQLModel, table=True):
         },
     )
     
+    oauth_accounts: list["OAuthAccount"] = Relationship(back_populates="user")
+    # list["OAuthAccount"]: 한 명의 여러 개의 소셜 계정을 가질 수 있는 1:N(일대 다) 관계를 의미
+    # 따옴표(" "): OAuthAccount 클래스가 아래의 정의되어 있어, 파이썬이 미리 알 수있게 '문자열'로 타입을 명시 한 것 (Forward Refrence)
+    # back_populates: 양방향 연결 설정. OAuthAccount 쪽에서도 .user를 통해 이 사용자를 바로 조회할 수 있게 함.
+    
+class OAuthAccount(SQLModel, table=True):
+    __tablename__ = "oauth_accounts"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_account_id",
+            name="uq_provider_provider_account_id",
+        ), # 쉼표(,) 추가 튜플
+    )
+    # 한 명의 사용자가 동일한 제공자(예: 카카오)의 동일한 게정으로
+    # 중복 가입되는 것을 DB 레벨에서 원천 봉쇄함 (보안 및 데이터 무결성)
+    
+    id: int = Field(default=None, primary_key=True)
+    provider: str = Field(max_length=10, description="OAuth 제공자")
+    # google, kakao, github 등 소셜 로그인 서비스 이름을 저장
+    provider_account_id: str = Field(max_length=128, description="OAuth 제공자 계정 ID")
+    # 외부 서비스에서 우리에게 넘겨주는 해당 사용자의 고유 식별 번호
+    user_id: int = Field(foreign_key="users.id")
+    # users 테이블의 id 컬럼을 참조하는 외래키
+    # 이 계정이 어떤 유저의 소유인지 물리적으로 연결
+    
+    user: User = Relationship(back_populates="oauth_accounts")
+    
+    created_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDatetime, # DB 저장 시 타임존 정보를 포함하여 항상 UTC 기준으로 저장되도록 강제.
+        sa_column_kwargs={
+            "server_default": func.now(),
+        },
+    )
+    updated_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDatetime,
+        sa_column_kwargs={
+            "server_default": func.now(),
+            "onupdate": lambda: datetime.now(timezone.utc), # 데이터가 수정될 떄마다 파이썬이 실행 시점의 UTC 시간을 계산해서 넣어줌.
+        },
+    )
