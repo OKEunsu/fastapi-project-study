@@ -1,8 +1,8 @@
-from datetime import timezone, datetime
+from datetime import date, time, timezone, datetime
 from typing import TYPE_CHECKING
 from pydantic import AwareDatetime
 from sqlalchemy_utc import UtcDateTime
-from sqlmodel import SQLModel, Field, Relationship, Text, JSON, func
+from sqlmodel import SQLModel, Field, Relationship, Text, JSON, func, String, Column
 from sqlalchemy.dialects.postgresql import JSONB
 if TYPE_CHECKING:
     from appserver.apps.account.models import User
@@ -46,11 +46,81 @@ class Calendar(SQLModel, table=True):
         },
     )
     
+    # 1:1 관계 한 명의 호스트(User)는 하나의 캘린더만 가짐
     host_id: int = Field(foreign_key="users.id", unique=True)
     host: "User" = Relationship(
         back_populates="calendar", # 이 객체는 단 하나의 부모에게만 종속됨을 명시
-        sa_relationship_kwargs={"single_parent": True},
+        sa_relationship_kwargs={"uselist": False, "single_parent": True},
     )
     # 부모가 삭제되거나 관계가 끊기면 자식 객체도 삭제함
     # 유저가 탈퇴하면 그 유저의 개인 캘린더 설정도 함꼐 지워져야 하므로 이 설정을 추가
     
+    time_slots: list["TimeSlot"] = Relationship(back_populates="calendar")
+    
+    
+class TimeSlot(SQLModel, table=True):
+    __tablename__ = "time_slots"
+    
+    id: int = Field(default=None, primary_key=True)
+    start_time: time # 예약 가능한 시작 시간
+    end_time: time # 예약 가능 종료 시간
+    # 요일 설정 0(월) ~ 6(일) 숫자를 리스트로 저장하여 다중 요일 선택 기능
+    weekdays: list[int] = Field(
+        sa_type=JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
+        description="예약 가능한 요일들"
+    )
+    
+    calendar_id: int = Field(foreign_key="calendars.id")
+    calendar: Calendar = Relationship(back_populates="time_slots")
+    bookings: list["Booking"] = Relationship(back_populates="time_slot")
+    created_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDateTime,
+        sa_column_kwargs={
+            "server_default": func.now(),
+        },
+    )
+    updated_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDateTime,
+        sa_column_kwargs={
+            "server_default": func.now(),
+            "onupdate": lambda: datetime.now(timezone.utc),
+        },
+    )
+
+class Booking(SQLModel, table=True):
+    __tablename__ = "bookings"
+    
+    id: int = Field(default=None, primary_key=True)
+    when: date
+    topic: str
+    description: str = Field(sa_type=Text, description="예약 설명")
+    
+    time_slot_id: int = Field(foreign_key="time_slots.id")
+    time_slot: TimeSlot = Relationship(back_populates="bookings")
+    
+    guest_id: int = Field(foreign_key="users.id")
+    guest: "User" = Relationship(back_populates="bookings")
+    
+    created_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDateTime,
+        sa_column_kwargs={
+            "server_default": func.now(),
+        },
+    )
+    updated_at: AwareDatetime = Field(
+        default=None,
+        nullable=False,
+        sa_type=UtcDateTime, 
+        sa_column_kwargs={
+            "server_default": func.now(),
+            "onupdate": lambda: datetime.now(timezone.utc),
+        },
+    )
+    
+    bookings: list["Booking"] = Relationship(back_populates="time_slot")

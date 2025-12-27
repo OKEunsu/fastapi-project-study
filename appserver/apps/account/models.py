@@ -6,7 +6,7 @@ from sqlalchemy_utc import UtcDateTime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from appserver.apps.calendar.models import Calendar
+    from appserver.apps.calendar.models import Calendar, Booking
 
 class User(SQLModel, table=True): 
     __tablename__ = "users" # 데이터베이스 테이블의 이름 지정 # table=True 인자를 지정한 경유 유효
@@ -62,6 +62,7 @@ class User(SQLModel, table=True):
         back_populates="host",
         sa_relationship_kwargs={"userlist": False, "single_parent": True},
     )
+    bookings: list["Booking"] = Relationship(back_populates="guest")
     
 class OAuthAccount(SQLModel, table=True):
     __tablename__ = "oauth_accounts"
@@ -89,7 +90,7 @@ class OAuthAccount(SQLModel, table=True):
     created_at: AwareDatetime = Field(
         default=None,
         nullable=False,
-        sa_type=UtcDatetime, # DB 저장 시 타임존 정보를 포함하여 항상 UTC 기준으로 저장되도록 강제.
+        sa_type=UtcDateTime, # DB 저장 시 타임존 정보를 포함하여 항상 UTC 기준으로 저장되도록 강제.
         sa_column_kwargs={
             "server_default": func.now(),
         },
@@ -97,7 +98,7 @@ class OAuthAccount(SQLModel, table=True):
     updated_at: AwareDatetime = Field(
         default=None,
         nullable=False,
-        sa_type=UtcDatetime,
+        sa_type=UtcDateTime,
         sa_column_kwargs={
             "server_default": func.now(),
             "onupdate": lambda: datetime.now(timezone.utc), # 데이터가 수정될 떄마다 파이썬이 실행 시점의 UTC 시간을 계산해서 넣어줌.
