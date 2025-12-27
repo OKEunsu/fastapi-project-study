@@ -122,5 +122,3 @@ class Booking(SQLModel, table=True):
             "onupdate": lambda: datetime.now(timezone.utc),
         },
     )
-    
-    bookings: list["Booking"] = Relationship(back_populates="time_slot")

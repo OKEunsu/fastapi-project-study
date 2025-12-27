@@ -37,8 +37,9 @@ async def use_session():
 
 # --- 실제 실행 및 초기화 ---
 
+DSN = "sqlite+aiosqlite:///./local.db"
 # 프로젝트 전역에서 사용할 단 하나의 엔진
-engine = create_engine()
+engine = create_engine(DSN)
 
 # 프로젝트 전역에서 상용할 세션 공장
-async_session_factory = create_session()
+async_session_factory = create_session(engine)
