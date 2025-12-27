@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, func, Column, AutoString
 from pydantic import EmailStr, AwareDatetime # 이메일 형식이 유효한지(@ 포함 등) 자동으로 검사해주는 도구
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
-from sqlalchemy_utc import UtcDatetime
+from sqlalchemy_utc import UtcDateTime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from appserver.apps.calendar.models import Calendar
 
 class User(SQLModel, table=True): 
     __tablename__ = "users" # 데이터베이스 테이블의 이름 지정 # table=True 인자를 지정한 경유 유효
@@ -33,7 +37,7 @@ class User(SQLModel, table=True):
     created_at: AwareDatetime = Field(
         default=None, # 파이썬에서 처리하는 default
         nullable=False,
-        sa_type=UtcDatetime,
+        sa_type=UtcDateTime,
         sa_column_kwargs={
             "server_default": func.now(), # 데이터베이스에서 처리하는 server_default
         }, # func는 SQLAlchemy에서 제공하는 객체로, 각 데이터베이스에서 현재 일시 값을 만드는 함수
@@ -41,7 +45,7 @@ class User(SQLModel, table=True):
     updated_at: AwareDatetime = Field(
         default=None,
         nullable=False,
-        sa_type=UtcDatetime,
+        sa_type=UtcDateTime,
         sa_column_kwargs={
             "server_default": func.now(),
             "onupdate": lambda: datetime.now(timezone.utc),
@@ -53,6 +57,11 @@ class User(SQLModel, table=True):
     # list["OAuthAccount"]: 한 명의 여러 개의 소셜 계정을 가질 수 있는 1:N(일대 다) 관계를 의미
     # 따옴표(" "): OAuthAccount 클래스가 아래의 정의되어 있어, 파이썬이 미리 알 수있게 '문자열'로 타입을 명시 한 것 (Forward Refrence)
     # back_populates: 양방향 연결 설정. OAuthAccount 쪽에서도 .user를 통해 이 사용자를 바로 조회할 수 있게 함.
+    
+    calendar: "Calendar" = Relationship(
+        back_populates="host",
+        sa_relationship_kwargs={"userlist": False, "single_parent": True},
+    )
     
 class OAuthAccount(SQLModel, table=True):
     __tablename__ = "oauth_accounts"
