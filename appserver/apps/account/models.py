@@ -60,7 +60,7 @@ class User(SQLModel, table=True):
     
     calendar: "Calendar" = Relationship(
         back_populates="host",
-        sa_relationship_kwargs={"userlist": False, "single_parent": True},
+        sa_relationship_kwargs={"uselist": False, "single_parent": True},
     )
     bookings: list["Booking"] = Relationship(back_populates="guest")
     
