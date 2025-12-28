@@ -1,0 +1,72 @@
+import pytest
+import asyncio
+from appserver.db import create_async_engine, create_session
+# 모델들이 metadata에 등록되도록 반드시 import
+from appserver.apps.account import models
+from appserver.apps.calendar import models
+from sqlmodel import SQLModel
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+from appserver.db import create_engine, create_session, use_session
+from appserver.app import include_routers
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture(scope="function")
+async def db_engine():
+    """테스트용 비동기 엔진을 생성하는 fixture"""
+    dsn = "sqlite+aiosqlite:///:memory:"
+    engine = create_async_engine(dsn)
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    
+    yield engine
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+    
+    await engine.dispose()
+
+
+@pytest.fixture(scope="function")
+async def db_session(db_engine: AsyncEngine):
+    """테스트마다 독립된 트랜잭션을 제공하는 세션 fixture"""
+    session_factory = create_session(db_engine)
+    async with session_factory() as session:
+        yield session
+        await session.rollback()
+
+
+@pytest.fixture()
+def fastapi_app(db_engine: AsyncEngine):
+    """
+    테스트용 FastAPI 애플리케이션 인스턴스를 생성하는 fixture입니다.
+    실제 DB 세션 생성 로직을 테스트용 세션으로 교체합니다.
+    """
+    # 1. 테스트를 위한 독립적인 FastAPI 객체 생성
+    app = FastAPI()
+    
+    # 2. 정의된 모든 API 경로(Router)를 앱에 등록
+    include_routers(app)
+    
+    # 3. 의존성 오버라이드 함수
+    # TestClient는 동기이므로, 비동기 세션을 동기적으로 사용할 수 있도록 해야 함
+    async def override_use_session():
+        session_factory = create_session(db_engine)
+        async with session_factory() as session:
+            yield session
+    
+    app.dependency_overrides[use_session] = override_use_session
+    return app
+
+
+@pytest.fixture()
+def client(fastapi_app: FastAPI):
+    """
+    테스트용 HTTP 클라이언트를 생성하는 fixture입니다.
+    생성된 fastapi_app(의존성이 교체된 앱)을 실행하여 요청을 보낼 준비를 합니다.
+    """
+    # TestClient는 내부적으로 비동기 함수를 동기적으로 실행해줍니다
+    with TestClient(fastapi_app) as client:
+        yield client
