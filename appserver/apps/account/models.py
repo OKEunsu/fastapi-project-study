@@ -3,7 +3,7 @@ from sqlmodel import SQLModel, Field, Relationship, func, Column, AutoString
 from pydantic import EmailStr, AwareDatetime # 이메일 형식이 유효한지(@ 포함 등) 자동으로 검사해주는 도구
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
 from sqlalchemy_utc import UtcDateTime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from appserver.apps.calendar.models import Calendar, Booking
@@ -58,7 +58,7 @@ class User(SQLModel, table=True):
     # 따옴표(" "): OAuthAccount 클래스가 아래의 정의되어 있어, 파이썬이 미리 알 수있게 '문자열'로 타입을 명시 한 것 (Forward Refrence)
     # back_populates: 양방향 연결 설정. OAuthAccount 쪽에서도 .user를 통해 이 사용자를 바로 조회할 수 있게 함.
     
-    calendar: "Calendar" = Relationship(
+    calendar: Union["Calendar", None] = Relationship(
         back_populates="host",
         sa_relationship_kwargs={"uselist": False, "single_parent": True},
     )
