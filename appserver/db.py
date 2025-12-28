@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
 )
+from typing import Annotated # 타입 힌트에 메타데이터를 추가하는 도구
+from fastapi import Depends # 의존성 주입을 선언하는 함수입니다.
 
 # 1. Engine 생성: 데이터베이스로 가는 '고속도로'를 건설하는 함수
 def create_engine(dsn: str):
@@ -43,3 +45,8 @@ engine = create_engine(DSN)
 
 # 프로젝트 전역에서 상용할 세션 공장
 async_session_factory = create_session(engine)
+
+# 의존성 주입을 위한 비동기 DB 세션 타입 별칭 (Annotated와 Depends 조합)
+# DBSessionDep은 비동기 DB 세션 타입이면서, use_session 함수를 통해
+# 자동으로 빌려오겠다는 선언
+DbSessionDep = Annotated[AsyncSession, Depends(use_session)]
