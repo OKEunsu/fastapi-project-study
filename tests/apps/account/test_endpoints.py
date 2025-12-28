@@ -59,36 +59,31 @@ def test_user_detail_by_http():
 dsn = "sqlite+aiosqlite:///./test.db"
 engine = create_async_engine(dsn)
 
-async def test_user_detail_for_real_user():
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-        await conn.run_sync(SQLModel.metadata.create_all)
-        
-        session_factory = create_session(engine)
-        
-        async with session_factory() as session:
-            user = User(
-                username="test",
-                password="test",
-                email="test@example.com",
-                display_name="test",
-                is_host=True,
-            )
-            session.add(user)
-            await session.commit()
-        client = TestClient(app)
-        response = client.get(f"/account/users/{user.username}")
-        
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["username"] == "test"
-        assert data["email"] == "test@example.com"
-        assert data["display_name"] == "test"
-        
-        response = client.get("/account/users/not_found")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.drop_all)
-        # 이걸 안 하면 test.db 파일이 "사용 중" 상태로 남아 삭제가 안 될 수 있음
-        await engine.dispose()
+async def test_user_detail_for_real_user(db_session):
+    user = User(
+        username="test",
+        password="test",
+        email="test@example.com",
+        display_name="test",
+        is_host=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    
+    client = TestClient(app)
+    response = client.get(f"/account/users/{user.username}")
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["username"] == "test"
+    assert data["email"] == "test@example.com"
+    assert data["display_name"] == "test"
+    
+    response = client.get("/account/users/not_found")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(SQLModel.metadata.drop_all)
+    # # 이걸 안 하면 test.db 파일이 "사용 중" 상태로 남아 삭제가 안 될 수 있음
+    # await engine.dispose()
+    
