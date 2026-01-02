@@ -4,6 +4,11 @@ from sqlmodel import select, SQLModel
 from appserver.db import DbSessionDep
 # .models에서 User 모델을 가져옴 (현재 코드에서 직접 쓰이지 않지만 확장을 위한 존재)
 from .models import User
+# 데이터베이스 중복 확인을 위한 select, func
+from sqlmodel import select, func
+# 중복 사용자명 예외
+from .exceptions import DuplicatedUsernameError, DuplicatedEmailError
+from sqlalchemy.exc import IntegrityError
 
 # /account 경로로 시작하는 API 그룹 생성
 router = APIRouter(prefix="/account")
@@ -32,8 +37,31 @@ async def user_detail(username: str, session: DbSessionDep) -> User:
 
 @router.post("/signup")
 async def signup(payload: dict, session: DbSessionDep) -> User:
+    # username 중복 체크
+    stmt = select(func.count()).select_from(User).where(User.username == payload["username"])
+    result = await session.execute(stmt)
+    count = result.scalar_one()
+    if count > 0:
+        raise DuplicatedUsernameError
+    
+    # email 중복 체크
+    stmt = select(func.count()).select_from(User).where(User.email == payload["email"])
+    result = await session.execute(stmt)
+    count = result.scalar_one()
+    if count > 0:
+        raise DuplicatedEmailError
+    
     # 사용자 입력을 Pydantic 모델 규칙으로 검증하여 안전한 모델로 변환
     user = User.model_validate(payload)
     session.add(user) # 세션에 모델 객체 등록
-    await session.commit() # 모든 객체의 변경 사항을 데이터베이스에 반영
+    
+    try:
+        await session.commit() # 모든 객체의 변경 사항을 데이터베이스에 반영
+    except IntegrityError as e:
+        # 혹시 모를 race condition 대비
+        if "email" in str(e.orig):
+            raise DuplicatedEmailError
+        else:
+            raise DuplicatedUsernameError
+    
     return user
