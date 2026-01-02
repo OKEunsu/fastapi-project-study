@@ -29,3 +29,11 @@ async def user_detail(username: str, session: DbSessionDep) -> User:
         status_code=status.HTTP_404_NOT_FOUND, 
         detail="User not found"
     )
+
+@router.post("/signup")
+async def signup(payload: dict, session: DbSessionDep) -> User:
+    # 사용자 입력을 Pydantic 모델 규칙으로 검증하여 안전한 모델로 변환
+    user = User.model_validate(payload)
+    session.add(user) # 세션에 모델 객체 등록
+    await session.commit() # 모든 객체의 변경 사항을 데이터베이스에 반영
+    return user

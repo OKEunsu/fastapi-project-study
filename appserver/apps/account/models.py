@@ -20,16 +20,16 @@ class User(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True) 
     
     # username: 고유해야 하며, 최대 40자 제한, description은 Swagger 문성에 설명으로 표시됨
-    username: str = Field(unique=True, max_length=40, description="사용자 계정 ID")
+    username: str = Field(min_length=4,unique=True, max_length=40, description="사용자 계정 ID")
     
     # email: Pydantic의 EamilStr을 사용해 문자열이 아닌 진짜 이메일 형식인지 검증함
     email: EmailStr = Field(max_length=128, description="사용자 이메일")
     
     # display_name: 서비스에서 보여질 별명, 길이를 제한하여 DB 공간 효율 증대
-    display_name: str = Field(max_length=40, description="사용자 표시 이름")
+    display_name: str = Field(min_length=4, max_length=40, description="사용자 표시 이름")
     
     # password: 실제 비밀번호가 저장될 곳, 나중에 해싱(암호화)된 문자열이 저장될 예정
-    password: str = Field(max_length=128, description="사용자 비밀번호")
+    password: str = Field(min_length=4, max_length=128, description="사용자 비밀번호")
     # is_host: 호스트/게스트 구분용, 기본값 False(게스트)로 설정
     
     is_host: bool = Field(default=False, description="사용자가 호스트인지 여부")
