@@ -74,3 +74,13 @@ async def test_e_mail_주소가_중복되면_중복_이메일_오류를_일으�
     payload["username"] = "test2"
     with pytest.raises(DuplicatedEmailError) as exc:
         await signup(payload, db_session)
+
+async def test_표시명을_입력하지_않으면_무작위_문자열_8글자로_대신한다(db_session: AsyncSession):
+    payload = {
+        "username": "test",
+        "email": "test@example.com",
+        "password": "test테스트1234",
+    }
+    user = await signup(payload, db_session)
+    assert isinstance(user.display_name, str)
+    assert len(user.display_name) == 8

@@ -4,6 +4,9 @@ from pydantic import EmailStr, AwareDatetime # 이메일 형식이 유효한지(
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
 from sqlalchemy_utc import UtcDateTime
 from typing import TYPE_CHECKING, Union
+import random
+import string
+from pydantic import model_validator
 
 if TYPE_CHECKING:
     from appserver.apps.calendar.models import Calendar, Booking
@@ -63,7 +66,25 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"uselist": False, "single_parent": True},
     )
     bookings: list["Booking"] = Relationship(back_populates="guest")
-    
+
+    @model_validator(mode="before") # 데이터 검증 전에 실행, Pydantic 모델 생성 전에 실행
+    @classmethod
+    def generate_display_name(cls, data: dict):
+        if not data.get("display_name"):
+            data["display_name"] = "".join(
+                random.choices(
+                    string.ascii_letters + string.digits,
+                    k=8,
+                )
+            )
+        return data
+
+    # @model_validator(mode="after")
+    # pydantic이 데이터를 검증하고 모델 객체를 만들기 직전에 이 함수를 실행하라는 뜻
+    # mode = "after" 일 때는 입력받은 데이터가 아직 딕셔너리 형태입니다. 데이터 타입을 맞추거나,
+    # 빠진 값을 채워넣는 전처리 단계에서 주로 사용
+    # 함수가 특정 인스턴스가 아니라 클래스 자체에 속함
+
 class OAuthAccount(SQLModel, table=True):
     __tablename__ = "oauth_accounts"
     __table_args__ = (
