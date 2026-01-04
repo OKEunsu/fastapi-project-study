@@ -78,7 +78,6 @@ class User(SQLModel, table=True):
                 )
             )
         return data
-
     # @model_validator(mode="after")
     # pydantic이 데이터를 검증하고 모델 객체를 만들기 직전에 이 함수를 실행하라는 뜻
     # mode = "after" 일 때는 입력받은 데이터가 아직 딕셔너리 형태입니다. 데이터 타입을 맞추거나,
