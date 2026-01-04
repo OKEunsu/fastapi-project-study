@@ -31,6 +31,9 @@ class User(SQLModel, table=True):
     # display_name: 서비스에서 보여질 별명, 길이를 제한하여 DB 공간 효율 증대
     display_name: str = Field(min_length=4, max_length=40, description="사용자 표시 이름")
     
+    # hashed_password: 실제 비밀번호가 저장될 곳, 나중에 해싱(암호화)된 문자열이 저장될 예정
+    hashed_password: str = Field(min_length=4, max_length=128, description="사용자 비밀번호")
+
     # password: 실제 비밀번호가 저장될 곳, 나중에 해싱(암호화)된 문자열이 저장될 예정
     password: str = Field(min_length=4, max_length=128, description="사용자 비밀번호")
     # is_host: 호스트/게스트 구분용, 기본값 False(게스트)로 설정

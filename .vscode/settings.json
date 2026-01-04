@@ -6,7 +6,7 @@
     "pythonTestExplorer.testFramework": "pytest",
     "python.testing.pytestPath": "./.venv/Scripts/pytest.exe",
     "python.testing.pytestArgs": [
-        "${workspaceFolder}/tests"
+        "."
     ],
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
     "python.analysis.autoImportCompletions": true,

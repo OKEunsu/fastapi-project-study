@@ -50,4 +50,7 @@ class UserOut(SQLModel):
     display_name: str
     is_host: bool
 
-    
+class LoginPayload(SQLModel):
+    """로그인 API에서 받는 페이로드"""
+    username: str = Field(min_length=4, max_length=40)
+    password: str = Field(min_length=8, max_length=128)

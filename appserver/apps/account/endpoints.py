@@ -1,4 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from fastapi.responses import JSONResponse
+from .utils import (
+    verify_password,
+    create_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select, SQLModel
 from appserver.db import DbSessionDep
@@ -10,6 +16,9 @@ from sqlmodel import select, func
 from .exceptions import DuplicatedUsernameError, DuplicatedEmailError
 from sqlalchemy.exc import IntegrityError
 from .schemas import SignupPayload, UserOut
+from .exceptions import PasswordMismatchError, UserNotFoundError
+from .schemas import SignupPayload, UserOut, LoginPayload
+from .utils import verify_password
 
 # /account 경로로 시작하는 API 그룹 생성
 router = APIRouter(prefix="/account")
@@ -91,3 +100,48 @@ async def signup(payload: SignupPayload, session: DbSessionDep) -> User:
     # User 객체를 반환하지만, response_model=UserOut 때문에
     # 실제로는 UserOut 형태로 필터링되어 응답됨 (password 제외)
     return user
+
+@router.post("/login", status_code=status.HTTP_200_OK)
+async def login(payload: LoginPayload, session: DbSessionDep) -> JSONResponse:
+    """
+    로그인 요청을 수신하고, 자격이 확인되면 토큰과 쿠키를 반환합니다.
+    """
+    stmt = select(User).where(User.username == payload.username)
+    result = await session.execute(stmt)
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise UserNotFoundError()
+    
+    # 입력한 비밀번호를 저장된 해시와 비교해서 유효성 검사
+    is_valid = verify_password(payload.password, user.hashed_password)
+    if not is_valid:
+        raise PasswordMismatchError()
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={
+            "sub": user.username,
+            "displayname": user.display_name,
+            "is_host": user.is_host,
+        },
+        expires_delta=access_token_expires,
+    )
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user.model_dump(mode="json", exclude={"hashed_password", "email"})
+    }
+    
+    # 토큰 만료 시간 기준으로 쿠키도 설정하기
+    now = datetime.now(timezone.utc)
+
+    res = JSONResponse(response_data)
+    res.set_cookie(
+        key="auth_token",
+        value=access_token,
+        expires=now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        httponly=True,
+        secure=True,
+        samesite="strict"
+    )
+    return res

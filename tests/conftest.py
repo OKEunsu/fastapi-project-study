@@ -2,15 +2,15 @@ import pytest
 import asyncio
 from appserver.db import create_async_engine, create_session
 # 모델들이 metadata에 등록되도록 반드시 import
-from appserver.apps.account import models
-from appserver.apps.calendar import models
+from appserver.apps.account import models as account_models
+from appserver.apps.calendar import models as calendar_models  # ensure Calendar model is registered
 from sqlmodel import SQLModel
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 from appserver.db import create_engine, create_session, use_session
 from appserver.app import include_routers
 from fastapi.testclient import TestClient
-
+from appserver.apps.account.utils import hash_password
 
 @pytest.fixture(scope="function")
 async def db_engine():
@@ -70,3 +70,21 @@ def client(fastapi_app: FastAPI):
     # TestClient는 내부적으로 비동기 함수를 동기적으로 실행해줍니다
     with TestClient(fastapi_app) as client:
         yield client
+
+@pytest.fixture()
+async def host_user(db_session: AsyncSession):
+    """
+    테스트용 호스트 사용자 fixture
+    """
+    user = account_models.User(
+        username="puddingcamp",
+        hashed_password=hash_password("testtest"),
+        password=hash_password("testtest"),
+        email="puddingcamp@example.com",
+        display_name="푸딩캠프",
+        is_host=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.flush(user)
+    return user

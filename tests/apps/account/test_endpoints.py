@@ -11,7 +11,6 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from appserver.db import create_async_engine, create_session
 
-
 async def test_user_detail_successfully(db_session: AsyncSession):
     """정상적인 사용자 조회 시 데이터가 정확한지 확인"""
     host_user = User(
