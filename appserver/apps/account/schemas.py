@@ -1,7 +1,7 @@
 import random
 import string
 from typing_extensions import Self  # Python 3.10 호환성
-from pydantic import model_validator, EmailStr
+from pydantic import model_validator, EmailStr, AwareDatetime
 from sqlmodel import SQLModel, Field
 
 # ============ 회원가입 입력 스키마 ============
@@ -54,3 +54,10 @@ class LoginPayload(SQLModel):
     """로그인 API에서 받는 페이로드"""
     username: str = Field(min_length=4, max_length=40)
     password: str = Field(min_length=8, max_length=128)
+    
+class UserDetailOut(UserOut):
+    email: EmailStr
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+    
+    

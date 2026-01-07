@@ -27,3 +27,21 @@ class PasswordMismatchError(HTTPException):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Password mismatch",
         )
+        
+class InvalidTokenError(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 인증 토큰입니다",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+        
+class ExpiredTokenError(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증 토큰이 만료되었습니다",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+        

@@ -1,24 +1,31 @@
 from datetime import datetime, timezone, timedelta
-from fastapi.responses import JSONResponse
-from .utils import (
-    verify_password,
-    create_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES
-)
+
 from fastapi import APIRouter, HTTPException, status
-from sqlmodel import select, SQLModel
-from appserver.db import DbSessionDep
-# .models에서 User 모델을 가져옴 (현재 코드에서 직접 쓰이지 않지만 확장을 위한 존재)
-from .models import User
-# 데이터베이스 중복 확인을 위한 select, func
-from sqlmodel import select, func
-# 중복 사용자명 예외
-from .exceptions import DuplicatedUsernameError, DuplicatedEmailError
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
-from .schemas import SignupPayload, UserOut
-from .exceptions import PasswordMismatchError, UserNotFoundError
-from .schemas import SignupPayload, UserOut, LoginPayload
-from .utils import verify_password
+from sqlmodel import func, select
+
+from appserver.db import DbSessionDep
+from .constants import AUTH_TOKEN_COOKIE_NAME
+from .deps import CurrentUserDep
+from .exceptions import (
+    DuplicatedEmailError,
+    DuplicatedUsernameError,
+    PasswordMismatchError,
+    UserNotFoundError,
+)
+from .models import User
+from .schemas import (
+    LoginPayload,
+    SignupPayload,
+    UserDetailOut,
+    UserOut,
+)
+from .utils import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_access_token,
+    verify_password,
+)
 
 # /account 경로로 시작하는 API 그룹 생성
 router = APIRouter(prefix="/account")
@@ -105,43 +112,96 @@ async def signup(payload: SignupPayload, session: DbSessionDep) -> User:
 async def login(payload: LoginPayload, session: DbSessionDep) -> JSONResponse:
     """
     로그인 요청을 수신하고, 자격이 확인되면 토큰과 쿠키를 반환합니다.
+    
+    1. 사용자 조회
+    2. 비밀번호 검증
+    3. JWT 액세스 토큰 생성 (신분증 발급)
+    4. 쿠키에 토큰 설정 (신분증을 지갑에 넣기)
     """
+    # ========== 1. 사용자 조회 ==========
     stmt = select(User).where(User.username == payload.username)
     result = await session.execute(stmt)
+    # scalar_one_or_none(): 
+    # - 결과가 1개면 해당 객체 반환 
+    # - 없으면 None 반환
+    # - 2개 이상이면 에러 발생 (Unique 조건이 있어서 2개일 수는 없음)
     user = result.scalar_one_or_none()
+    
     if user is None:
         raise UserNotFoundError()
     
-    # 입력한 비밀번호를 저장된 해시와 비교해서 유효성 검사
+    # ========== 2. 비밀번호 검증 ==========
+    # 입력한 평문 비밀번호(payload.password)와 DB에 저장된 해시(user.hashed_password) 비교
+    # verify_password 내부에서 Argon2/Bcrypt 등을 사용하여 검증함
     is_valid = verify_password(payload.password, user.hashed_password)
     if not is_valid:
         raise PasswordMismatchError()
     
+    # ========== 3. 토큰 생성 (신분증 발급) ==========
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # payload(내용물)에는 식별 가능한 최소한의 정보를 담습니다.
+    # 비밀번호 같은 민감 정보는 절대 담으면 안 됩니다.
     access_token = create_access_token(
         data={
-            "sub": user.username,
+            "sub": user.username,        # sub (Subject): 토큰의 주인 (보통 ID 사용)
             "displayname": user.display_name,
             "is_host": user.is_host,
         },
         expires_delta=access_token_expires,
     )
+    
+    # 응답 본문(Body)에 담을 데이터 구성
     response_data = {
         "access_token": access_token,
         "token_type": "bearer",
         "user": user.model_dump(mode="json", exclude={"hashed_password", "email"})
     }
     
-    # 토큰 만료 시간 기준으로 쿠키도 설정하기
+    # ========== 4. 쿠키 설정 및 응답 (지갑에 넣기) ==========
+    # JSONResponse 객체를 직접 생성해야 쿠키(Header)를 조작할 수 있습니다.
+    res = JSONResponse(response_data, status_code=status.HTTP_200_OK)
+    
+    # 현재 시간 (쿠키 만료 계산용)
     now = datetime.now(timezone.utc)
-
-    res = JSONResponse(response_data)
+    
+    # set_cookie: 브라우저에게 "이 데이터를 쿠키 저장소에 저장해!"라고 명령
     res.set_cookie(
-        key="auth_token",
-        value=access_token,
+        key=AUTH_TOKEN_COOKIE_NAME,       # 쿠키 이름 (예: "access_token")
+        value=access_token,               # 쿠키 값 (JWT 문자열)
+        
+        # 만료 시간 설정 (이 시간이 지나면 브라우저가 알아서 쿠키를 삭제함)
         expires=now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        
+        # [보안 중요] httponly=True: 
+        # 자바스크립트(document.cookie)로 이 쿠키에 접근할 수 없게 막음.
+        # XSS(교차 사이트 스크립팅) 공격 시 토큰 탈취를 방지하는 핵심 옵션.
         httponly=True,
+        
+        # [보안 중요] secure=True:
+        # HTTPS(암호화된 연결)인 경우에만 쿠키를 서버로 전송함.
+        # 네트워크 스니핑(패킷 가로채기)으로부터 토큰을 보호함. (로컬 개발에선 http여도 동작하게 설정 필요할 수 있음)
         secure=True,
+        
+        # [보안 중요] samesite="strict":
+        # 다른 사이트에서 우리 사이트로 요청을 보낼 때 쿠키를 전송하지 않음.
+        # CSRF(사이트 간 요청 위조) 공격을 방지함.
         samesite="strict"
     )
     return res
+
+@router.get("/@me", response_model=UserDetailOut)
+async def me(user: CurrentUserDep) -> User:
+    """
+    현재 로그인한 사용자의 정보를 반환합니다.
+    
+    Args:
+        user (CurrentUserDep): 
+            FastAPI의 Dependency Injection 시스템이 동작합니다.
+            1. 요청의 쿠키에서 토큰을 꺼냅니다.
+            2. 토큰을 검증하고 디코딩하여 username을 얻습니다.
+            3. DB에서 해당 username을 조회하여 User 객체를 만들어 여기에 주입해줍니다.
+            (이 모든 과정은 deps.py의 get_current_user 함수에서 처리됩니다)
+    """
+    return user
+
