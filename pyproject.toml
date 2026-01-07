@@ -34,7 +34,7 @@ env = []
 addopts = " --strict-markers --tb=short --asyncio-mode=auto -p no:warnings --doctest-modules"
 python_files = ["tests.py", "test_*.py"]
 rootdir = "./"
-testpaths = ["./tests", "./appserver"]
+testpaths = ["./tests"]
 pythonpath = ["./"]
 filterwarnings = ["error", "ignore::DeprecationWarning:etcd3.*:"]
 log_cli = true

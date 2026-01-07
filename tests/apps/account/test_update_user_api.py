@@ -1,7 +1,7 @@
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
-from appserver.apps.acocunt.models import User
+from appserver.apps.account.models import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 UPDATABLE_FIELDS = frozenset(["display_name", "email"])

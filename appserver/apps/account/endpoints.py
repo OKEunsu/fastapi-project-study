@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import func, select, update
+from sqlmodel import func, select, update, delete
 
 from appserver.db import DbSessionDep
 from .constants import AUTH_TOKEN_COOKIE_NAME
@@ -219,3 +219,15 @@ async def update_user(
     await session.commit()
     return user
 
+@router.delete("/logout", status_code=status.HTTP_200_OK)
+async def logout(user: CurrentUserDep) -> JSONResponse:
+    res = JSONResponse({})
+    res.delete_cookie(AUTH_TOKEN_COOKIE_NAME)
+    return res
+
+@router.delete("/unregister", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister(user: CurrentUserDep, session:DbSessionDep) -> None:
+    stmt = delete(User).where(User.username == user.username)
+    await session.execute(stmt)
+    await session.commit()
+    return None

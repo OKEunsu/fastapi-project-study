@@ -52,6 +52,9 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def decode_token(token: str) -> dict[str, Any]:
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
 if __name__ == "__main__":
     password = "dhrdmstn"
     hashed_password = hash_password(password)
