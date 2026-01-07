@@ -1,8 +1,9 @@
 import random
 import string
 from typing_extensions import Self  # Python 3.10 호환성
-from pydantic import model_validator, EmailStr, AwareDatetime
+from pydantic import model_validator, EmailStr, AwareDatetime, computed_field
 from sqlmodel import SQLModel, Field
+from .utils import hash_password
 
 # ============ 회원가입 입력 스키마 ============
 # 클라이언트로부터 받는 회원가입 데이터의 형식을 정의
@@ -60,4 +61,27 @@ class UserDetailOut(UserOut):
     created_at: AwareDatetime
     updated_at: AwareDatetime
     
+class UpdateUserPayload(SQLModel):
+    display_name: str | None = Field(default=None, min_length=4, max_length=40)
+    email: EmailStr | None = Field(default=None, unique=True, max_length=128)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password_again: str | None = Field(default=None, min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def check_all_fields_are_none(self) -> Self:
+        if not self.model_dump(exclude_none=True):
+            raise ValueError("최소 하나의 필드는 반드시 제공되어야 합니다.")
+        return self
+
+    @model_validator(mode="after")
+    def verify_password(self) -> Self:
+        if self.password != self.password_again:
+            raise ValueError("비밀번호가 일치하지 않습니다.")
+        return self
     
+    @computed_field
+    @property
+    def hashed_password(self) -> str | None:
+        if self.password:
+            return hash_password(self.password)
+        return None

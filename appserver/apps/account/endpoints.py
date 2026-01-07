@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import func, select
+from sqlmodel import func, select, update
 
 from appserver.db import DbSessionDep
 from .constants import AUTH_TOKEN_COOKIE_NAME
@@ -26,6 +26,8 @@ from .utils import (
     create_access_token,
     verify_password,
 )
+from .schemas import UpdateUserPayload
+
 
 # /account 경로로 시작하는 API 그룹 생성
 router = APIRouter(prefix="/account")
@@ -203,5 +205,17 @@ async def me(user: CurrentUserDep) -> User:
             3. DB에서 해당 username을 조회하여 User 객체를 만들어 여기에 주입해줍니다.
             (이 모든 과정은 deps.py의 get_current_user 함수에서 처리됩니다)
     """
+    return user
+
+@router.patch("/@me", response_model=UserDetailOut)
+async def update_user(
+    user: CurrentUserDep,
+    payload: UpdateUserPayload,
+    session: DbSessionDep
+) -> User:
+    updated_data = payload.model_dump(exclude_unset=True, exclude={"password", "password_again"})
+    stmt = update(User).where(User.username == user.username).values(**updated_data)
+    await session.execute(stmt)
+    await session.commit()
     return user
 
