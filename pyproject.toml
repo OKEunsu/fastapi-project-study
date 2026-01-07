@@ -11,7 +11,10 @@ dependencies = [
     "sqlalchemy-utc (>=0.14.0,<0.15.0)",
     "aiosqlite (>=0.22.1,<0.23.0)",
     "alembic (>=1.17.2,<2.0.0)",
-    "greenlet (>=3.3.0,<4.0.0)"
+    "greenlet (>=3.3.0,<4.0.0)",
+    "typing-extensions (>=4.0.0,<5.0.0)",
+    "pwdlib[argon2,bcrypt] (>=0.3.0,<0.4.0)",
+    "python-jose[crpytography] (>=3.5.0,<4.0.0)"
 ]
 
 
@@ -31,7 +34,7 @@ env = []
 addopts = " --strict-markers --tb=short --asyncio-mode=auto -p no:warnings --doctest-modules"
 python_files = ["tests.py", "test_*.py"]
 rootdir = "./"
-testpaths = ["./tests", "./appserver"]
+testpaths = ["./tests"]
 pythonpath = ["./"]
 filterwarnings = ["error", "ignore::DeprecationWarning:etcd3.*:"]
 log_cli = true

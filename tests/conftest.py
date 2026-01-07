@@ -2,15 +2,16 @@ import pytest
 import asyncio
 from appserver.db import create_async_engine, create_session
 # 모델들이 metadata에 등록되도록 반드시 import
-from appserver.apps.account import models
-from appserver.apps.calendar import models
+from appserver.apps.account import models as account_models
+from appserver.apps.calendar import models as calendar_models  # ensure Calendar model is registered
 from sqlmodel import SQLModel
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from appserver.apps.account.schemas import LoginPayload
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 from appserver.db import create_engine, create_session, use_session
 from appserver.app import include_routers
 from fastapi.testclient import TestClient
-
+from appserver.apps.account.utils import hash_password
 
 @pytest.fixture(scope="function")
 async def db_engine():
@@ -70,3 +71,43 @@ def client(fastapi_app: FastAPI):
     # TestClient는 내부적으로 비동기 함수를 동기적으로 실행해줍니다
     with TestClient(fastapi_app) as client:
         yield client
+
+@pytest.fixture()
+async def host_user(db_session: AsyncSession):
+    """
+    테스트용 호스트 사용자 fixture
+    """
+    user = account_models.User(
+        username="puddingcamp",
+        hashed_password=hash_password("testtest"),
+        password=hash_password("testtest"),
+        email="puddingcamp@example.com",
+        display_name="푸딩캠프",
+        is_host=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.flush(user)
+    return user
+
+@pytest.fixture()
+def client_with_auth(fastapi_app: FastAPI, host_user: account_models.User):
+    """
+    host_user로 로그인한 상태의 TestClient를 반환한다. (auth_token 쿠키 포함)
+    """
+    payload = LoginPayload(
+        username=host_user.username,
+        password="testtest",
+    )
+    
+    with TestClient(fastapi_app) as client:
+        response = client.post("/account/login", json=payload.model_dump())
+        assert response.status_code == status.HTTP_200_OK
+        
+        auth_token = response.cookies.get("auth_token")
+        assert auth_token is not None
+        
+        client.cookies["auth_token"] = auth_token
+        yield client
+        
+        

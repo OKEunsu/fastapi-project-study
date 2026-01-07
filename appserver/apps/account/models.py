@@ -4,6 +4,9 @@ from pydantic import EmailStr, AwareDatetime # 이메일 형식이 유효한지(
 from sqlalchemy import UniqueConstraint # 특정 컬럼의 값이 중복되지 않도록 DB 레벨에서 강제하는 
 from sqlalchemy_utc import UtcDateTime
 from typing import TYPE_CHECKING, Union
+import random
+import string
+from pydantic import model_validator
 
 if TYPE_CHECKING:
     from appserver.apps.calendar.models import Calendar, Booking
@@ -20,16 +23,19 @@ class User(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True) 
     
     # username: 고유해야 하며, 최대 40자 제한, description은 Swagger 문성에 설명으로 표시됨
-    username: str = Field(unique=True, max_length=40, description="사용자 계정 ID")
+    username: str = Field(min_length=4,unique=True, max_length=40, description="사용자 계정 ID")
     
     # email: Pydantic의 EamilStr을 사용해 문자열이 아닌 진짜 이메일 형식인지 검증함
     email: EmailStr = Field(max_length=128, description="사용자 이메일")
     
     # display_name: 서비스에서 보여질 별명, 길이를 제한하여 DB 공간 효율 증대
-    display_name: str = Field(max_length=40, description="사용자 표시 이름")
+    display_name: str = Field(min_length=4, max_length=40, description="사용자 표시 이름")
     
+    # hashed_password: 실제 비밀번호가 저장될 곳, 나중에 해싱(암호화)된 문자열이 저장될 예정
+    hashed_password: str = Field(min_length=4, max_length=128, description="사용자 비밀번호")
+
     # password: 실제 비밀번호가 저장될 곳, 나중에 해싱(암호화)된 문자열이 저장될 예정
-    password: str = Field(max_length=128, description="사용자 비밀번호")
+    password: str = Field(min_length=4, max_length=128, description="사용자 비밀번호")
     # is_host: 호스트/게스트 구분용, 기본값 False(게스트)로 설정
     
     is_host: bool = Field(default=False, description="사용자가 호스트인지 여부")
@@ -63,7 +69,24 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"uselist": False, "single_parent": True},
     )
     bookings: list["Booking"] = Relationship(back_populates="guest")
-    
+
+    @model_validator(mode="before") # 데이터 검증 전에 실행, Pydantic 모델 생성 전에 실행
+    @classmethod
+    def generate_display_name(cls, data: dict):
+        if not data.get("display_name"):
+            data["display_name"] = "".join(
+                random.choices(
+                    string.ascii_letters + string.digits,
+                    k=8,
+                )
+            )
+        return data
+    # @model_validator(mode="after")
+    # pydantic이 데이터를 검증하고 모델 객체를 만들기 직전에 이 함수를 실행하라는 뜻
+    # mode = "after" 일 때는 입력받은 데이터가 아직 딕셔너리 형태입니다. 데이터 타입을 맞추거나,
+    # 빠진 값을 채워넣는 전처리 단계에서 주로 사용
+    # 함수가 특정 인스턴스가 아니라 클래스 자체에 속함
+
 class OAuthAccount(SQLModel, table=True):
     __tablename__ = "oauth_accounts"
     __table_args__ = (
