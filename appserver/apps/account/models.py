@@ -8,6 +8,7 @@ import random
 import string
 from pydantic import model_validator
 
+
 if TYPE_CHECKING:
     from appserver.apps.calendar.models import Calendar, Booking
 
