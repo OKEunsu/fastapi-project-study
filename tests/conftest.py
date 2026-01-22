@@ -124,13 +124,10 @@ async def guest_user(db_session: AsyncSession):
     await db_session.flush()
     return user
 
-from appseerver.apps.calendar import models as calendar_models
-
 @pytest.fixture()
 async def host_user_calendar(db_session: AsyncSession, host_user: account_models.User):
     calendar = calendar_models.Calendar(
         host_id=host_user.id,
-        google_calendar_id="푸딩캠프 캘린더입니다.",
         topics=["푸딩캠프", "푸딩캠프2"],
         google_calendar_id="1234567890",
     )

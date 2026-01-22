@@ -14,7 +14,8 @@ from .models import User
 from .utils import ACCESS_TOKEN_EXPIRE_MINUTES, decode_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
-async def get_user(auth_token: str | None, db_session: AsnycSession) -> User | None:
+# get_user 함수 - 토큰으로 사용자 조회하는 공통 로직
+async def get_user(auth_token: str | None, db_session: AsyncSession) -> User | None:
     if not auth_token:
         return None
     try:
@@ -56,6 +57,7 @@ async def get_current_user(
     # stmt = select(User).where(User.username == decoded["sub"])
     # result = await db_session.execute(stmt)
     # user = result.scalar_one_or_none()
+    user = await get_user(auth_token, db_session)
     if user is None:
         raise UserNotFoundError()
     
@@ -64,13 +66,15 @@ async def get_current_user(
 # 의존성 주입용 타입 별칭
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
+# get_current_user_optional 함수 - 선택적 인증 의존성
 async def get_current_user_optional(
     db_session: DbSessionDep,
     auth_token: Annotated[str | None, Cookie()] = None,
 ):
     user = await get_user(auth_token, db_session)
-    return user
+    return user 
 
+# CurrentUserOptionalDep 타입 별칭
 CurrentUserOptionalDep = Annotated[User | None, Depends(get_current_user_optional)]
 
 
